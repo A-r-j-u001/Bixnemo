@@ -156,7 +156,7 @@ const LoginPage = () => {
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 className="w-full rounded-xl border border-gray-300 bg-white/50 px-4 py-3 text-gray-900 placeholder-gray-500 backdrop-blur-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-black/50 dark:text-white dark:placeholder-gray-400"
-                                placeholder="name@company.com or username"
+                                placeholder="email or username"
                             />
                         </div>
                         <div>
