@@ -120,7 +120,7 @@ const LoginPage = () => {
                         </motion.div>
                     )}
 
-                    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+                    {/* <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
                         <AnimatePresence mode='popLayout'>
                             {isSignUp && (
                                 <motion.div
@@ -218,7 +218,35 @@ const LoginPage = () => {
                         >
                             {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
                         </button>
-                    </form>
+                    </form> */}
+
+                    <div className="flex flex-col gap-4">
+                        <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-2">
+                            Guest Access Enabled
+                        </div>
+                        <button
+                            onClick={async () => {
+                                setLoading(true);
+                                setError('');
+                                try {
+                                    const res = await signIn('credentials', {
+                                        email: 'demobix48', // Using username as per auth logic
+                                        password: 'password123',
+                                        redirect: false
+                                    });
+                                    if (res?.error) throw new Error(res.error);
+                                    router.push('/dashboard');
+                                } catch (err: any) {
+                                    setError(err.message);
+                                    setLoading(false);
+                                }
+                            }}
+                            disabled={loading}
+                            className="w-full rounded-full bg-blue-600 px-8 py-3 text-base font-semibold text-white shadow-lg transition-all hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            {loading ? 'Entering as Guest...' : 'Continue as Guest'}
+                        </button>
+                    </div>
                 </motion.div>
 
                 <Link
