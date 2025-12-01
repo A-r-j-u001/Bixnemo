@@ -26,7 +26,12 @@ export const authOptions: NextAuthOptions = {
                 if (!credentials?.email || !credentials?.password) return null;
 
                 console.time("User Find");
-                const user = await User.findOne({ email: credentials.email }).select('+password');
+                const user = await User.findOne({
+                    $or: [
+                        { email: credentials.email },
+                        { username: credentials.email }
+                    ]
+                }).select('+password');
                 console.timeEnd("User Find");
 
                 if (!user) {

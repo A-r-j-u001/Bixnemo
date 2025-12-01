@@ -11,6 +11,11 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide an email for this user.'],
     unique: true,
   },
+  username: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   image: {
     type: String,
   },
