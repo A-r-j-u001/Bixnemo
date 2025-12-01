@@ -5,6 +5,15 @@ import dbConnect from "@/app/lib/db";
 import Note from "@/app/lib/db/models/Note";
 import User from "@/app/lib/db/models/User";
 
+import { z } from "zod";
+
+const createNoteSchema = z.object({
+  title: z.string().optional(),
+  content: z.string().min(1, "Content is required"),
+  transcript: z.string().optional(),
+  source: z.string().optional(),
+});
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -13,7 +22,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { title, content, transcript, source } = await req.json();
+    const body = await req.json();
+    const validation = createNoteSchema.safeParse(body);
+
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error.format() }, { status: 400 });
+    }
+
+    const { title, content, transcript, source } = validation.data;
     await dbConnect();
 
     // Find User ID
