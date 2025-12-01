@@ -122,6 +122,72 @@ const LoginPage = () => {
 
 
 
+                    <form onSubmit={handleSubmit} className="w-full space-y-4 mb-6">
+                        <AnimatePresence mode="popLayout">
+                            {isSignUp && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                >
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Full Name"
+                                            required={isSignUp}
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            className="w-full rounded-xl border border-gray-200 bg-white/50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-black/50 dark:text-white dark:focus:border-blue-500 transition-all"
+                                        />
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <div className="relative">
+                            <input
+                                type="email"
+                                placeholder="Email Address"
+                                required
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                className="w-full rounded-xl border border-gray-200 bg-white/50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-black/50 dark:text-white dark:focus:border-blue-500 transition-all"
+                            />
+                        </div>
+
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Password"
+                                required
+                                value={formData.password}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                className="w-full rounded-xl border border-gray-200 bg-white/50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-black/50 dark:text-white dark:focus:border-blue-500 transition-all"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                {showPassword ? <FaEyeSlash /> : <FaEye />}
+                            </button>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full rounded-full bg-gray-900 px-8 py-3 text-base font-semibold text-white shadow-lg transition-all hover:bg-gray-800 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                        >
+                            {loading ? (isSignUp ? 'Creating Account...' : 'Signing In...') : (isSignUp ? 'Create Account' : 'Sign In')}
+                        </button>
+                    </form>
+
+                    <div className="relative flex items-center gap-4 w-full mb-6">
+                        <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
+                        <span className="text-xs text-gray-400 font-medium">OR</span>
+                        <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
+                    </div>
+
                     <div className="flex flex-col gap-4">
                         <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-2">
                             Guest Access Enabled
