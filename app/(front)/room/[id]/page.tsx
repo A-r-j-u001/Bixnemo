@@ -1,23 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
-// Dynamically import SimplePeer to avoid SSR issues and potential polyfill clashes during initial load
-import dynamic from 'next/dynamic';
+import { pusherClient } from "@/app/lib/pusher";
 import { useRouter } from "next/navigation";
+import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash } from "react-icons/fa";
+import MeetingAssistant from "@/app/components/MeetingAssistant";
+import SimplePeer, { Instance } from "simple-peer";
 
-// Use dynamic import for simple-peer if needed, or ensuring it runs only on client.
-// However, simple-peer imports 'process' immediately. 
-// We need to polyfill 'global' and 'process' for the browser environment before import.
-
+// Polyfills for SimplePeer
 if (typeof window !== 'undefined') {
   (window as any).global = window;
   (window as any).process = require('process');
   (window as any).Buffer = require('buffer').Buffer;
 }
-
-import SimplePeer, { Instance } from "simple-peer";
-import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash } from "react-icons/fa";
-import MeetingAssistant from "@/app/components/MeetingAssistant";
 
 interface RoomProps {
   params: {
@@ -26,23 +20,17 @@ interface RoomProps {
 }
 
 export default function Room({ params: { id: roomId } }: RoomProps) {
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [peers, setPeers] = useState<{ peerId: string; peer: Instance }[]>([]);
   const userVideo = useRef<HTMLVideoElement>(null);
   const peersRef = useRef<{ peerId: string; peer: Instance }[]>([]);
   const router = useRouter();
+  const channelRef = useRef<any>(null);
 
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
 
   useEffect(() => {
-    // Initialize Socket
-    const socketInstance = io({
-      path: '/socket.io', // Ensure this matches server config
-    });
-    setSocket(socketInstance);
-
     // Get Media
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
@@ -52,50 +40,61 @@ export default function Room({ params: { id: roomId } }: RoomProps) {
           userVideo.current.srcObject = currentStream;
         }
 
-        socketInstance.emit("join-room", roomId, socketInstance.id);
+        // Initialize Pusher
+        const channel = pusherClient.subscribe(`presence-room-${roomId}`);
+        channelRef.current = channel;
 
-        socketInstance.on("user-connected", (userId: string) => {
-          connectToNewUser(userId, currentStream, socketInstance);
+        channel.bind("pusher:subscription_succeeded", (members: any) => {
+          // Initiate connection to all existing members
+          members.each((member: any) => {
+            if (member.id !== pusherClient.connection.socket_id) {
+              const peer = createPeer(member.id, pusherClient.connection.socket_id, currentStream, channel);
+              peersRef.current.push({
+                peerId: member.id,
+                peer,
+              });
+              setPeers([...peersRef.current]);
+            }
+          });
         });
 
-        socketInstance.on("user-disconnected", (userId: string) => {
-          const peerObj = peersRef.current.find(p => p.peerId === userId);
+        channel.bind("pusher:member_added", (member: any) => {
+          console.log("Member added:", member.id);
+          // We wait for them to initiate, or we could initiate. 
+          // In this logic, the new joiner (subscription_succeeded) initiates.
+        });
+
+        channel.bind("pusher:member_removed", (member: any) => {
+          const peerObj = peersRef.current.find(p => p.peerId === member.id);
           if (peerObj) {
             peerObj.peer.destroy();
           }
-          const newPeers = peersRef.current.filter(p => p.peerId !== userId);
+          const newPeers = peersRef.current.filter(p => p.peerId !== member.id);
           peersRef.current = newPeers;
           setPeers(newPeers);
         });
 
-        // Listen for signals
-        socketInstance.on("offer", (payload: any) => {
-          const peer = addPeer(payload.signal, payload.caller, currentStream, socketInstance);
-          peersRef.current.push({
-            peerId: payload.caller,
-            peer,
-          })
-          setPeers([...peersRef.current]);
-        });
-
-        socketInstance.on("answer", (payload: any) => {
-          const item = peersRef.current.find(p => p.peerId === payload.caller);
-          if (item) {
-            item.peer.signal(payload.signal);
-          }
-        });
-
-        socketInstance.on("ice-candidate", (payload: any) => {
-          const item = peersRef.current.find(p => p.peerId === payload.caller);
-          if (item) {
-            item.peer.signal(payload.candidate);
+        channel.bind("client-signal", (payload: any) => {
+          if (payload.target === pusherClient.connection.socket_id) {
+            const item = peersRef.current.find(p => p.peerId === payload.caller);
+            if (item) {
+              // Existing peer (we initiated, getting answer or candidate)
+              item.peer.signal(payload.signal);
+            } else {
+              // New offer coming in (we are the receiver)
+              const peer = addPeer(payload.signal, payload.caller, currentStream, channel);
+              peersRef.current.push({
+                peerId: payload.caller,
+                peer,
+              });
+              setPeers([...peersRef.current]);
+            }
           }
         });
       });
 
     return () => {
-      socketInstance.disconnect();
-      // cleanup stream
+      pusherClient.unsubscribe(`presence-room-${roomId}`);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -105,10 +104,9 @@ export default function Room({ params: { id: roomId } }: RoomProps) {
   const iceServers = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:global.stun.twilio.com:3478" }
-    // Add TURN servers here for production
   ];
 
-  function connectToNewUser(userId: string, stream: MediaStream, socket: Socket) {
+  function createPeer(userToSignal: string, callerId: string, stream: MediaStream, channel: any) {
     const peer = new SimplePeer({
       initiator: true,
       trickle: false,
@@ -117,30 +115,13 @@ export default function Room({ params: { id: roomId } }: RoomProps) {
     });
 
     peer.on("signal", (signal) => {
-      socket.emit("offer", { target: userId, caller: socket.id, signal });
+      channel.trigger("client-signal", { target: userToSignal, caller: callerId, signal });
     });
 
-    peer.on("connect", () => {
-      console.log("Peer connected!");
-    });
-
-    peer.on("error", (err) => {
-      console.error("Peer connection error:", err);
-      // Implement retry logic or notify user
-    });
-
-    peer.on("stream", (userStream) => {
-      // This will be handled in the render loop by looking at peers state
-    });
-
-    peersRef.current.push({
-      peerId: userId,
-      peer,
-    });
-    setPeers([...peersRef.current]);
+    return peer;
   }
 
-  function addPeer(incomingSignal: any, callerId: string, stream: MediaStream, socket: Socket) {
+  function addPeer(incomingSignal: any, callerId: string, stream: MediaStream, channel: any) {
     const peer = new SimplePeer({
       initiator: false,
       trickle: false,
@@ -149,15 +130,7 @@ export default function Room({ params: { id: roomId } }: RoomProps) {
     });
 
     peer.on("signal", (signal) => {
-      socket.emit("answer", { target: callerId, caller: socket.id, signal });
-    });
-
-    peer.on("connect", () => {
-      console.log("Peer connected!");
-    });
-
-    peer.on("error", (err) => {
-      console.error("Peer connection error:", err);
+      channel.trigger("client-signal", { target: callerId, caller: pusherClient.connection.socket_id, signal });
     });
 
     peer.signal(incomingSignal);
@@ -185,10 +158,8 @@ export default function Room({ params: { id: roomId } }: RoomProps) {
 
   return (
     <div className="flex h-screen flex-col bg-gray-900 text-white">
-      {/* Meeting Assistant Component */}
       <MeetingAssistant />
       <div className="flex flex-1 flex-wrap items-center justify-center gap-4 p-4">
-        {/* User's own video */}
         <div className="relative h-64 w-80 overflow-hidden rounded-lg border-2 border-blue-500 bg-black">
           <video
             playsInline
@@ -200,7 +171,6 @@ export default function Room({ params: { id: roomId } }: RoomProps) {
           <span className="absolute bottom-2 left-2 bg-black/50 px-2 py-1 text-sm">You</span>
         </div>
 
-        {/* Peers videos */}
         {peers.map((peerObj, index) => {
           return (
             <VideoCard key={peerObj.peerId} peer={peerObj.peer} />

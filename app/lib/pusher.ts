@@ -1,0 +1,15 @@
+import PusherServer from 'pusher';
+import PusherClient from 'pusher-js';
+
+export const pusherServer = new PusherServer({
+    appId: process.env.PUSHER_APP_ID || "YOUR_APP_ID",
+    key: process.env.NEXT_PUBLIC_PUSHER_KEY || "YOUR_KEY",
+    secret: process.env.PUSHER_SECRET || "YOUR_SECRET",
+    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "mt1",
+    useTLS: true,
+});
+
+export const pusherClient = new PusherClient(process.env.NEXT_PUBLIC_PUSHER_KEY || "YOUR_KEY", {
+    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "mt1",
+    authEndpoint: '/api/pusher/auth',
+});
