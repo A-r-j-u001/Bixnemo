@@ -18,12 +18,22 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" }
             },
             async authorize(credentials, req) {
+                console.log("--- Auth Start ---");
                 console.time("Auth Total");
+
                 console.time("DB Connect");
-                await dbConnect();
+                try {
+                    await dbConnect();
+                } catch (e) {
+                    console.error("DB Connect Error:", e);
+                    return null;
+                }
                 console.timeEnd("DB Connect");
 
-                if (!credentials?.email || !credentials?.password) return null;
+                if (!credentials?.email || !credentials?.password) {
+                    console.log("Missing credentials");
+                    return null;
+                }
 
                 console.time("User Find");
                 const user = await User.findOne({
@@ -35,6 +45,7 @@ export const authOptions: NextAuthOptions = {
                 console.timeEnd("User Find");
 
                 if (!user) {
+                    console.log("User not found");
                     console.timeEnd("Auth Total");
                     return null;
                 }
@@ -44,11 +55,13 @@ export const authOptions: NextAuthOptions = {
                 console.timeEnd("Bcrypt Compare");
 
                 if (!isValid) {
+                    console.log("Invalid password");
                     console.timeEnd("Auth Total");
                     return null;
                 }
 
                 console.timeEnd("Auth Total");
+                console.log("--- Auth Success ---");
                 return { id: user._id.toString(), name: user.name, email: user.email, image: user.image };
             }
         })
