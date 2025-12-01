@@ -50,6 +50,13 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
+                // Optimization: Skip bcrypt for demo user to speed up guest login
+                if (credentials.email === 'demobix48' && credentials.password === 'password123') {
+                    console.log("Demo user login - skipping bcrypt");
+                    console.timeEnd("Auth Total");
+                    return { id: user._id.toString(), name: user.name, email: user.email, image: user.image };
+                }
+
                 console.time("Bcrypt Compare");
                 const isValid = await bcrypt.compare(credentials.password, user.password);
                 console.timeEnd("Bcrypt Compare");
